@@ -1,5 +1,7 @@
 package uk.ac.nottingham.cryptography.ciphers;
 
+import java.util.Arrays;
+
 public class Zodiac implements ZodiacCipher, BlockCipher {
     public static final byte[] S1 = {
             (byte) 0x2d, (byte) 0xf3, (byte) 0x7c, (byte) 0x6d, (byte) 0x9d, (byte) 0xb5, (byte) 0x26, (byte) 0x74,
@@ -84,7 +86,8 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
     @Override
     public void F(byte[] block) {
-        // Add your code here
+        //64 bits input here
+
     }
 
     @Override
@@ -94,8 +97,40 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
     @Override
     public void PI(byte[] block) {
-        // Add your code here
+        //8 bits per byte. 4 bytes = 32 bits
+        byte[] wordA = Arrays.copyOfRange(block, 0, 4);
+        byte[] wordB = Arrays.copyOfRange(block, 4, 8);
+        byte[] wordC = Arrays.copyOfRange(block, 8, 12);
+        byte[] wordD = Arrays.copyOfRange(block, 12, 16);
+        byte[] T = new byte[4];
+        byte[] aDash = new byte[4];
+        byte[] bDash = new byte[4];
+        byte[] cDash = new byte[4];
+        byte[] dDash = new byte[4];
+        for(int i = 0; i < wordA.length; i++) {
+            T[i] = (byte)(wordA[i] ^ wordB[i] ^ wordC[i] ^ wordD[i]);
+        }
+        for(int i = 0; i < T.length; i++) {
+            aDash[i] = (byte)(wordA[i] ^ T[i]);
+            bDash[i] = (byte)(wordB[i] ^ T[i]);
+            cDash[i] = (byte)(wordC[i] ^ T[i]);
+            dDash[i] = (byte)(wordD[i] ^ T[i]);
+        }
+        byte[] outBlock = new byte[16];
+        for(int i = 0; i < 16; i++) {
+            if(i<4)
+                outBlock[i] = aDash[i];
+            else if (i<8)
+                outBlock[i] = bDash[i-4];
+            else if (i<12)
+                outBlock[i] = cDash[i-8];
+            else
+                outBlock[i] = dDash[i-12];
+        }
+        block = outBlock;
+        System.out.println("Block: " + Arrays.toString(block));
     }
+
 
     @Override
     public void PSI(byte[] block) {
