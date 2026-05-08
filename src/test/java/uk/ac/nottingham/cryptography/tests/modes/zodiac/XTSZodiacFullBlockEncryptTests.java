@@ -1,0 +1,93 @@
+package uk.ac.nottingham.cryptography.tests.modes.zodiac;
+
+import org.junit.jupiter.api.*;
+import uk.ac.nottingham.cryptography.HexUtils;
+import uk.ac.nottingham.cryptography.tests.modes.XTSTestVector;
+import uk.ac.nottingham.cryptography.tests.modes.XTSTestVectorParser;
+import uk.ac.nottingham.cryptography.ciphers.BlockCipher;
+import uk.ac.nottingham.cryptography.modes.TweakableCipherMode;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.ServiceLoader;
+import java.util.function.Supplier;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class XTSZodiacFullBlockEncryptTests {
+
+    Class<? extends BlockCipher> blk = ServiceLoader.load(BlockCipher.class)
+            .stream()
+            .map(ServiceLoader.Provider::type)
+            .filter(c -> c.getSimpleName().equals("Zodiac"))
+            .findFirst()
+            .orElseThrow();
+
+    Supplier<BlockCipher> supplier = () -> {
+        try {
+            return blk.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    };
+
+    private final TweakableCipherMode cipherMode = ServiceLoader.load(TweakableCipherMode.class).findFirst().orElseThrow();
+
+    private List<XTSTestVector> vectors;
+
+    @BeforeAll
+    void init() {
+        try {
+            vectors = XTSTestVectorParser.load("xts_zodiac_vectors.txt");
+        } catch (IOException ex) {
+            vectors = null;
+        }
+    }
+
+    private void assertEncryptsCorrectly(XTSTestVector vector) {
+        cipherMode.initialise(supplier, HexUtils.hexToBytes(vector.key()));
+
+        byte[] sector = HexUtils.hexToBytes(vector.sector());
+        byte[] pt = HexUtils.hexToBytes(vector.plaintext());
+        cipherMode.encrypt(sector, pt);
+
+        String actual = HexUtils.bytesToHex(pt);
+        String expected = vector.ciphertext();
+
+        assertEquals(expected, actual,
+                () -> "Ciphertext mismatch for vector " + describe(vector));
+    }
+
+    private String describe(XTSTestVector v) {
+        String mode = v.encrypt() ? "Encrypt" : "Decrypt";
+        String key = v.key();
+        return mode + ", Key: " + key.substring(0, 4) + "..." + key.substring(key.length() - 4);
+    }
+
+    @Test
+    void singleBlockEncryptTests() {
+        vectors.stream()
+            .filter(XTSTestVector::encrypt)
+            .filter(v -> v.dataUnitLen() == 16)
+            .forEach(this::assertEncryptsCorrectly);
+    }
+
+    @Test
+    void doubleBlockEncryptTests() {
+        vectors.stream()
+                .filter(XTSTestVector::encrypt)
+                .filter(v -> v.dataUnitLen() == 32)
+                .forEach(this::assertEncryptsCorrectly);
+    }
+
+    @Test
+    void multiFullBlockEncryptTests() {
+        vectors.stream()
+                .filter(XTSTestVector::encrypt)
+                .filter(v -> v.dataUnitLen() > 32 && v.dataUnitLen() % 16 == 0)
+                .forEach(this::assertEncryptsCorrectly);
+    }
+}
+
