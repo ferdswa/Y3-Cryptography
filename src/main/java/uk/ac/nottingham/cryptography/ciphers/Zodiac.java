@@ -84,10 +84,44 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
             0x37d81f7b
     };
 
+
     @Override
     public void F(byte[] block) {
-        //64 bits input here
+        //64 bits input here (8 bytes), 8 sub-blocks so 1 sub-block = 1 byte
+        byte byteA = block[0];
+        byte byteB = block[1];
+        byte byteC = block[2];
+        byte byteD = block[3];
+        byte byteE = block[4];
+        byte byteF = block[5];
+        byte byteG = block[6];
+        byte byteH = block[7];
 
+        byte AxorB = (byte) (byteA ^ byteB);//S2 - B
+        byte BxorC = (byte) (byteB ^ byteC);//S1 - C
+        byte CxorD = (byte) (byteC ^ byteD);//S2 - D
+        byte DxorE = (byte) (CxorD ^ byteE);//S1 - A
+        byte ExorF = (byte) (byteE ^ byteF);//S2 - F
+        byte FxorG = (byte) (byteF ^ byteG);//S1 - G
+        byte GxorH = (byte) (byteG ^ byteH);//S2 - H
+        byte HxorA = (byte) (GxorH ^ byteA);//S1 - E
+
+        byte subAxorB = S2[AxorB & 0xFF]; //B
+        byte subBxorC = S1[BxorC & 0xFF]; //C
+        byte subCxorD = S2[CxorD & 0xFF]; //D
+        byte subDxorE = S1[DxorE & 0xFF]; //A
+        byte subExorF = S2[ExorF & 0xFF]; //F
+        byte subFxorG = S1[FxorG & 0xFF]; //G
+        byte subGxorH = S2[GxorH & 0xFF]; //H
+        byte subHxorA = S1[HxorA & 0xFF]; //E
+        block[0] = subDxorE;
+        block[1] = subAxorB;
+        block[2] = subBxorC;
+        block[3] = subCxorD;
+        block[4] = subHxorA;
+        block[5] = subExorF;
+        block[6] = subFxorG;
+        block[7] = subGxorH;
     }
 
     @Override
@@ -117,7 +151,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
             dDash[i] = (byte)(wordD[i] ^ T[i]);
         }
         byte[] outBlock = new byte[16];
-        for(int i = 0; i < 16; i++) {
+        for(int i = 0; i < outBlock.length; i++) {
             if(i<4)
                 outBlock[i] = aDash[i];
             else if (i<8)
@@ -127,7 +161,9 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
             else
                 outBlock[i] = dDash[i-12];
         }
-        block = outBlock;
+        for(int i = 0; i < outBlock.length; i++) {
+            block[i] = outBlock[i];
+        }
         System.out.println("Block: " + Arrays.toString(block));
     }
 
