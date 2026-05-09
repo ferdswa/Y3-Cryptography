@@ -126,7 +126,8 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
     @Override
     public void initPads(byte[] dpad, byte[] kpad, byte[] key) {
-        // Add your code here
+        //4 bytes per block
+
     }
 
     @Override
@@ -164,13 +165,36 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         for(int i = 0; i < outBlock.length; i++) {
             block[i] = outBlock[i];
         }
-        System.out.println("Block: " + Arrays.toString(block));
     }
 
 
     @Override
     public void PSI(byte[] block) {
-        // Add your code here
+        //128 bit input
+        byte[] L = Arrays.copyOfRange(block, 0, 8);
+        byte[] R = Arrays.copyOfRange(block, 8, 16);
+
+        byte[] FL = Arrays.copyOf(L, L.length);
+        this.F(FL);
+        byte[] FLxorR = new byte[8];
+        for(int i = 0; i < L.length; i++) {
+            FLxorR[i] = (byte)(FL[i]^ R[i]);
+        }
+
+        byte[] FFLxorR = Arrays.copyOf(FLxorR, FLxorR.length);
+        F(FFLxorR);
+        byte[] FFLxorRxorL = new byte[8];
+        for(int i = 0; i < FLxorR.length; i++) {
+            FFLxorRxorL[i] = (byte)(FFLxorR[i] ^ L[i]);
+        }
+
+        for(int i = 0; i < 8; i++){
+            block[i] = FFLxorRxorL[i];
+        }
+        for(int i = 0; i < 8; i++){
+            block[i+8] = FLxorR[i];
+        }
+        System.out.println("Block: " + Arrays.toString(block));
     }
 
     @Override
