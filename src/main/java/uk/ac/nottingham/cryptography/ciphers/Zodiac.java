@@ -84,6 +84,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
             0x37d81f7b
     };
 
+    byte[][] rKeys = new byte[18][8];
 
     @Override
     public void F(byte[] block) {
@@ -276,12 +277,22 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
     @Override
     public void initialise(byte[] key) {
-        // Add your code here
+        //Init pads
+        byte[] kPad = new byte[16];
+        byte[] dPad = new byte[16];
+        this.initPads(dPad, kPad, key);
+        //Generate round keys
+        this.rKeys = this.generateSchedule(dPad, kPad);
     }
 
     @Override
     public void encrypt(byte[] input, byte[] output) {
-        // Add your code here
+        this.PI(input);
+        byte[] left64 = Arrays.copyOfRange(input, 0, 8);
+        byte[] right64 = Arrays.copyOfRange(input, 8, 16);
+        for(int i = 0; i < left64.length; i++){
+            left64[i] = (byte)(left64[i] ^ this.rKeys[0][i%8]);
+        }
     }
 
     @Override
