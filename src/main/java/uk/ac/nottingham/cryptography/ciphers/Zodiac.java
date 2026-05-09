@@ -212,7 +212,8 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
             else
                 outBlock[i] = dDash[i-12];
         }
-        System.arraycopy(outBlock, 0, block, 0, outBlock.length);
+
+        System.arraycopy(outBlock, 0, block, 0, 16);
     }
 
 
@@ -238,13 +239,39 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
         System.arraycopy(FFLxorRxorL, 0, block, 0, 8);
         System.arraycopy(FLxorR, 0, block, 8, 8);
-        System.out.println("Block: " + Arrays.toString(block));
     }
 
     @Override
     public byte[][] generateSchedule(byte[] dpad, byte[] kpad) {
-        // Add your code here
-        return null;
+        //18 rounds
+        //A word = 32 bits
+        byte[] outState = new byte[16];
+        byte[][] res = new byte[18][8];
+        for(int i = 0; i < 18; i++){
+            //Run PI
+            this.PI(dpad);
+            //XOR with kpad
+            for(int j = 0; j < dpad.length; j++){
+                dpad[j] = (byte)(dpad[j] ^ kpad[j]);
+            }
+            //Run PSI
+            this.PSI(dpad);
+            for(int j = 0; j < dpad.length; j++){
+                //Last byte per 4 byte word XORed with round const
+                if(j == 3 || j== 7 || j==11 || j==15){
+                    outState[j] = (byte)(dpad[j] ^ (4*i + 16 + j/4));
+                }
+                else{
+                    outState[j] = dpad[j];
+                }
+            }
+            //Build output and new arrs
+            System.arraycopy(outState,0,res[i],0,8);
+            byte[] temp = Arrays.copyOf(kpad, 16);
+            System.arraycopy(outState, 0, kpad, 0, 16);
+            System.arraycopy(temp, 0, dpad, 0, 16);
+        }
+        return res;
     }
 
     @Override
