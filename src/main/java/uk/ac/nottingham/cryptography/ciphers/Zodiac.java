@@ -126,8 +126,58 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
     @Override
     public void initPads(byte[] dpad, byte[] kpad, byte[] key) {
-        //4 bytes per block
+        //128 bit in, 4 blocks, 32 bits per block, 4 bytes per block
+        byte[] k0 = Arrays.copyOfRange(kpad, 0, 4);
+        byte[] k1 = Arrays.copyOfRange(kpad, 4, 8);
+        byte[] k2 = Arrays.copyOfRange(kpad, 8, 12);
+        byte[] k3 = Arrays.copyOfRange(kpad, 12, 16);
 
+        for(int i = 0; i<k0.length; i++){
+            k0[i] = (byte)(k0[i] ^ M[0]);
+        }
+        for(int i = 0; i<k1.length; i++){
+            k1[i] = (byte)(k1[i] ^ M[1]);
+        }
+        for(int i = 0; i<k2.length; i++){
+            k2[i] = (byte)(k2[i] ^ M[2]);
+        }
+        for(int i = 0; i<k3.length; i++){
+            k3[i] = (byte)(k3[i] ^ M[3]);
+        }
+
+        byte[] d0 = Arrays.copyOfRange(k2, 0, 4);
+        byte[] d1 = Arrays.copyOfRange(k0, 0, 4);
+        byte[] d2 = Arrays.copyOfRange(k3, 0, 4);
+        byte[] d3 = Arrays.copyOfRange(k1, 0, 4);
+
+        System.arraycopy(d0, 0, dpad, 0, d0.length);
+        System.arraycopy(d1, 0, dpad, 4, d1.length);
+        System.arraycopy(d2, 0, dpad, 8, d2.length);
+        System.arraycopy(d3, 0, dpad, 12, d3.length);
+
+        //done with dpad bits
+        for(int i = 0; i<d0.length; i++){
+            d0[i] = (byte)(d0[i] ^ M[4]);
+        }
+        for(int i = 0; i<d1.length; i++){
+            d1[i] = (byte)(d1[i] ^ M[5]);
+        }
+        for(int i = 0; i<d2.length; i++){
+            d2[i] = (byte)(d2[i] ^ M[6]);
+        }
+        for(int i = 0; i<d3.length; i++){
+            d3[i] = (byte)(d3[i] ^ M[7]);
+        }
+
+        byte[] kpad0 = Arrays.copyOfRange(d1, 0, 4);
+        byte[] kpad1 = Arrays.copyOfRange(d0, 0, 4);
+        byte[] kpad2 = Arrays.copyOfRange(d2, 0, 4);
+        byte[] kpad3 = Arrays.copyOfRange(d3, 0, 4);
+
+        System.arraycopy(kpad0, 0, kpad, 0, kpad0.length);
+        System.arraycopy(kpad1, 0, kpad, 4, kpad1.length);
+        System.arraycopy(kpad2, 0, kpad, 8, kpad2.length);
+        System.arraycopy(kpad3, 0, kpad, 12, kpad3.length);
     }
 
     @Override
@@ -162,9 +212,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
             else
                 outBlock[i] = dDash[i-12];
         }
-        for(int i = 0; i < outBlock.length; i++) {
-            block[i] = outBlock[i];
-        }
+        System.arraycopy(outBlock, 0, block, 0, outBlock.length);
     }
 
 
@@ -188,12 +236,8 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
             FFLxorRxorL[i] = (byte)(FFLxorR[i] ^ L[i]);
         }
 
-        for(int i = 0; i < 8; i++){
-            block[i] = FFLxorRxorL[i];
-        }
-        for(int i = 0; i < 8; i++){
-            block[i+8] = FLxorR[i];
-        }
+        System.arraycopy(FFLxorRxorL, 0, block, 0, 8);
+        System.arraycopy(FLxorR, 0, block, 8, 8);
         System.out.println("Block: " + Arrays.toString(block));
     }
 
