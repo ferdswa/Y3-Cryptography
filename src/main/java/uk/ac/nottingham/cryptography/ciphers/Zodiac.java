@@ -1,5 +1,6 @@
 package uk.ac.nottingham.cryptography.ciphers;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 public class Zodiac implements ZodiacCipher, BlockCipher {
@@ -133,17 +134,26 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         byte[] k2 = Arrays.copyOfRange(key, 8, 12);
         byte[] k3 = Arrays.copyOfRange(key, 12, 16);
 
+        byte[] m0AsBytes = ByteBuffer.allocate(4).putInt(M[0]).array();
+        byte[] m1AsBytes = ByteBuffer.allocate(4).putInt(M[1]).array();
+        byte[] m2AsBytes = ByteBuffer.allocate(4).putInt(M[2]).array();
+        byte[] m3AsBytes = ByteBuffer.allocate(4).putInt(M[3]).array();
+        byte[] m4AsBytes = ByteBuffer.allocate(4).putInt(M[4]).array();
+        byte[] m5AsBytes = ByteBuffer.allocate(4).putInt(M[5]).array();
+        byte[] m6AsBytes = ByteBuffer.allocate(4).putInt(M[6]).array();
+        byte[] m7AsBytes = ByteBuffer.allocate(4).putInt(M[7]).array();
+
         for(int i = 0; i < k0.length; i++){
-            k0[i] = (byte)(k0[i] ^ ((M[0] >> (24 - 8*i)) & 0xFF));
+            k0[i] = (byte)(k0[i] ^ m0AsBytes[i]);
         }
         for(int i = 0; i < k1.length; i++){
-            k1[i] = (byte)(k1[i] ^ ((M[1] >> (24 - 8*i)) & 0xFF));
+            k1[i] = (byte)(k1[i] ^ m1AsBytes[i]);
         }
         for(int i = 0; i < k2.length; i++){
-            k2[i] = (byte)(k2[i] ^ ((M[2] >> (24 - 8*i)) & 0xFF));
+            k2[i] = (byte)(k2[i] ^ m2AsBytes[i]);
         }
         for(int i = 0; i < k3.length; i++){
-            k3[i] = (byte)(k3[i] ^ ((M[3] >> (24 - 8*i)) & 0xFF));
+            k3[i] = (byte)(k3[i] ^ m3AsBytes[i]);
         }
 
         byte[] d0 = Arrays.copyOfRange(k2, 0, 4);
@@ -158,16 +168,16 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
         //done with dpad bits
         for(int i = 0; i<d0.length; i++){
-            d0[i] = (byte)(d0[i] ^ ((M[4] >> (24 - 8*i)) & 0xFF));
+            d0[i] = (byte)(d0[i] ^ (m4AsBytes[i]));
         }
         for(int i = 0; i<d1.length; i++){
-            d1[i] = (byte)(d1[i] ^ ((M[5] >> (24 - 8*i)) & 0xFF));
+            d1[i] = (byte)(d1[i] ^ m5AsBytes[i]);
         }
         for(int i = 0; i<d2.length; i++){
-            d2[i] = (byte)(d2[i] ^ ((M[6] >> (24 - 8*i)) & 0xFF));
+            d2[i] = (byte)(d2[i] ^ m6AsBytes[i]);
         }
         for(int i = 0; i<d3.length; i++){
-            d3[i] = (byte)(d3[i] ^ ((M[7] >> (24 - 8*i)) & 0xFF));
+            d3[i] = (byte)(d3[i] ^ m7AsBytes[i]);
         }
 
         byte[] kpad0 = Arrays.copyOfRange(d1, 0, 4);
@@ -287,16 +297,88 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
     @Override
     public void encrypt(byte[] input, byte[] output) {
-        this.PI(input);
-        byte[] left64 = Arrays.copyOfRange(input, 0, 8);
-        byte[] right64 = Arrays.copyOfRange(input, 8, 16);
+        //multi re-init test fails if input is worked on directly
+        System.arraycopy(input, 0, output, 0, input.length);
+        //pi
+        this.PI(output);
+        //Split
+        byte[] left64 = Arrays.copyOfRange(output, 0, 8);
+        byte[] right64 = Arrays.copyOfRange(output, 8, 16);
+        //First XOR
         for(int i = 0; i < left64.length; i++){
             left64[i] = (byte)(left64[i] ^ this.rKeys[0][i%8]);
         }
+        //All pairs
+        for(int i = 1; i <= 16; i+=2){
+            byte[] xorLeft64 = Arrays.copyOfRange(left64, 0, left64.length);
+            for(int j = 0; j < xorLeft64.length; j++){
+                xorLeft64[j] = (byte)(xorLeft64[j] ^ this.rKeys[i][j%8]);
+            }
+            byte[] fxorLeft64 = Arrays.copyOfRange(xorLeft64, 0, xorLeft64.length);
+            this.F(fxorLeft64);
+            for(int j = 0; j < right64.length; j++){
+                right64[j] = (byte)(fxorLeft64[j] ^ right64[j]);
+            }
+
+            byte[] xorRight64 = Arrays.copyOfRange(right64, 0, right64.length);
+            for(int j = 0; j < xorRight64.length; j++){
+                xorRight64[j] = (byte)(xorRight64[j] ^ this.rKeys[i+1][j%8]);
+            }
+            byte[] fxorRight64 = Arrays.copyOfRange(xorRight64, 0, xorRight64.length);
+            this.F(fxorRight64);
+            for(int j = 0; j < left64.length; j++){
+                left64[j] = (byte)(fxorRight64[j] ^ left64[j]);
+            }
+        }
+        //Final XOR
+        for(int j = 0; j < right64.length; j++){
+            right64[j] = (byte)(right64[j] ^ this.rKeys[17][j%8]);
+        }
+        //Swap left and right sides
+        System.arraycopy(right64,0,output,0,right64.length);
+        System.arraycopy(left64,0,output,8,left64.length);
+        this.PI(output);
     }
 
     @Override
     public void decrypt(byte[] input, byte[] output) {
-        // Add your code here
+        //inverse encrypt
+        System.arraycopy(input, 0, output, 0, input.length);
+        this.PI(output);
+        byte[] left64 = Arrays.copyOfRange(output, 0, 8);
+        byte[] right64 = Arrays.copyOfRange(output, 8, 16);
+        for(int i = 0; i < left64.length; i++){
+            left64[i] = (byte)(left64[i] ^ this.rKeys[17][i%8]);
+        }
+        //pairs
+        for(int i = 16; i > 1; i-=2){
+            byte[] xorLeft64 = Arrays.copyOfRange(left64, 0, left64.length);
+            for(int j = 0; j < xorLeft64.length; j++){
+                xorLeft64[j] = (byte)(xorLeft64[j] ^ this.rKeys[i][j%8]);
+            }
+            byte[] fxorLeft64 = Arrays.copyOfRange(xorLeft64, 0, xorLeft64.length);
+            this.F(fxorLeft64);
+            for(int j = 0; j < right64.length; j++){
+                right64[j] = (byte)(fxorLeft64[j] ^ right64[j]);
+            }
+
+            byte[] xorRight64 = Arrays.copyOfRange(right64, 0, right64.length);
+            for(int j = 0; j < xorRight64.length; j++){
+                xorRight64[j] = (byte)(xorRight64[j] ^ this.rKeys[i-1][j%8]);
+            }
+            byte[] fxorRight64 = Arrays.copyOfRange(xorRight64, 0, xorRight64.length);
+            this.F(fxorRight64);
+            for(int j = 0; j < left64.length; j++){
+                left64[j] = (byte)(fxorRight64[j] ^ left64[j]);
+            }
+        }
+        //Swap R and L
+        for(int j = 0; j < right64.length; j++){
+            right64[j] = (byte)(right64[j] ^ this.rKeys[0][j%8]);
+        }
+
+        System.arraycopy(right64,0,output,0,right64.length);
+        System.arraycopy(left64,0,output,8,left64.length);
+        this.PI(output);
     }
 }
