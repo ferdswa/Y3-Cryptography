@@ -87,7 +87,7 @@ http-client.private.env.json
 .idea/**/copilot.data.migration.*.xml
 
 .gradle
-.gradle/
+.gradle/*
 **/build/
 !**/src/**/build/
 
