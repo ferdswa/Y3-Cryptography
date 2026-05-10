@@ -186,8 +186,49 @@ public class XTSMode implements TweakableCipherMode {
                 //roundT = tm-1
                 byte[] tM = Arrays.copyOfRange(roundT, 0, roundT.length);
                 gf128Multiplier.multiplyByX(tM);
-                //tM and tM-1 got, perform decryption with tM on Cm-1
 
+                //tM and tM-1 got, perform decryption with tM on Cm-1
+                //First XOR
+                for(int j = 0; j < blocks[blocks.length-2].length; j++) {//2TL CT block
+                    blocks[blocks.length-2][j] = (byte)(blocks[blocks.length-2][j] ^ tM[j]);
+                }
+                inBlock = Arrays.copyOfRange(blocks[blocks.length-2], 0, blocks[blocks.length-2].length);
+                aes128.decrypt(inBlock, blocks[blocks.length-2]);
+                //Second XOR
+                for (int j = 0; j < blocks[blocks.length-2].length; j++) {
+                    blocks[blocks.length-2][j] = (byte) (blocks[blocks.length-2][j] ^ tM[j]);
+                }
+
+                //Decrypted 2tl block, use for CTS
+                byte[] swap = new byte[16];
+                byte[] remBlock = Arrays.copyOfRange(data, 16*(data.length/16), data.length);
+                //should contain m-1 so copy to final now. blocks[i-1] is safe to work with
+                byte[] LFB = Arrays.copyOfRange(blocks[blocks.length-2], 0, 16);
+                for(int j = 0; j < remBlock.length; j++) {
+                    swap[j] = remBlock[j];
+                }
+                for(int j = remBlock.length; j < blocks[blocks.length-2].length; j++) {
+                    swap[j] = blocks[blocks.length-2][j];
+                }
+                //swap now contains the proper values for Cm
+                //First XOR
+                for (int j = 0; j < swap.length; j++) {
+                    blocks[blocks.length-1][j] = (byte) (swap[j] ^ roundT[j]);
+                }
+                //Dc
+                inBlock = Arrays.copyOfRange(blocks[blocks.length-1], 0, 16);
+                aes128.decrypt(inBlock, blocks[blocks.length-1]);
+                //Second XOR
+                for (int j = 0; j < blocks[blocks.length-1].length; j++) {
+                    blocks[blocks.length-1][j] = (byte) (blocks[blocks.length-1][j] ^ roundT[j]);
+                }
+                int k;
+                for(k = 0; k < lengthIn128bBlocks-2; k++) { //Exclude old last block
+                    System.arraycopy(blocks[k], 0, data, k*16, 16);
+                }
+                //Append old last block
+                System.arraycopy(blocks[blocks.length-1], 0, data, k*16, blocks[blocks.length-1].length);
+                System.arraycopy(LFB, 0, data, (k+1)*16, remBlock.length);
             }
         }
     }
