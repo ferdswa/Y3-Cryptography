@@ -310,25 +310,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         }
         //All pairs
         for(int i = 1; i <= 16; i+=2){
-            byte[] xorLeft64 = Arrays.copyOfRange(left64, 0, left64.length);
-            for(int j = 0; j < xorLeft64.length; j++){
-                xorLeft64[j] = (byte)(xorLeft64[j] ^ this.rKeys[i][j%8]);
-            }
-            byte[] fxorLeft64 = Arrays.copyOfRange(xorLeft64, 0, xorLeft64.length);
-            this.F(fxorLeft64);
-            for(int j = 0; j < right64.length; j++){
-                right64[j] = (byte)(fxorLeft64[j] ^ right64[j]);
-            }
-
-            byte[] xorRight64 = Arrays.copyOfRange(right64, 0, right64.length);
-            for(int j = 0; j < xorRight64.length; j++){
-                xorRight64[j] = (byte)(xorRight64[j] ^ this.rKeys[i+1][j%8]);
-            }
-            byte[] fxorRight64 = Arrays.copyOfRange(xorRight64, 0, xorRight64.length);
-            this.F(fxorRight64);
-            for(int j = 0; j < left64.length; j++){
-                left64[j] = (byte)(fxorRight64[j] ^ left64[j]);
-            }
+            runZodiacFeistel(left64, right64, i, true);
         }
         //Final XOR
         for(int j = 0; j < right64.length; j++){
@@ -352,25 +334,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         }
         //pairs
         for(int i = 16; i > 1; i-=2){
-            byte[] xorLeft64 = Arrays.copyOfRange(left64, 0, left64.length);
-            for(int j = 0; j < xorLeft64.length; j++){
-                xorLeft64[j] = (byte)(xorLeft64[j] ^ this.rKeys[i][j%8]);
-            }
-            byte[] fxorLeft64 = Arrays.copyOfRange(xorLeft64, 0, xorLeft64.length);
-            this.F(fxorLeft64);
-            for(int j = 0; j < right64.length; j++){
-                right64[j] = (byte)(fxorLeft64[j] ^ right64[j]);
-            }
-
-            byte[] xorRight64 = Arrays.copyOfRange(right64, 0, right64.length);
-            for(int j = 0; j < xorRight64.length; j++){
-                xorRight64[j] = (byte)(xorRight64[j] ^ this.rKeys[i-1][j%8]);
-            }
-            byte[] fxorRight64 = Arrays.copyOfRange(xorRight64, 0, xorRight64.length);
-            this.F(fxorRight64);
-            for(int j = 0; j < left64.length; j++){
-                left64[j] = (byte)(fxorRight64[j] ^ left64[j]);
-            }
+            runZodiacFeistel(left64, right64, i, false);
         }
         //Swap R and L
         for(int j = 0; j < right64.length; j++){
@@ -380,5 +344,31 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         System.arraycopy(right64,0,output,0,right64.length);
         System.arraycopy(left64,0,output,8,left64.length);
         this.PI(output);
+    }
+
+    private void runZodiacFeistel(byte[] left64, byte[] right64, int i, boolean encrypt) {
+        byte[] xorLeft64 = Arrays.copyOfRange(left64, 0, left64.length);
+        for(int j = 0; j < xorLeft64.length; j++){
+            xorLeft64[j] = (byte)(xorLeft64[j] ^ this.rKeys[i][j%8]);
+        }
+        byte[] fxorLeft64 = Arrays.copyOfRange(xorLeft64, 0, xorLeft64.length);
+        this.F(fxorLeft64);
+        for(int j = 0; j < right64.length; j++){
+            right64[j] = (byte)(fxorLeft64[j] ^ right64[j]);
+        }
+
+        byte[] xorRight64 = Arrays.copyOfRange(right64, 0, right64.length);
+
+        for(int j = 0; j < xorRight64.length; j++){
+            if(encrypt)
+                xorRight64[j] = (byte)(xorRight64[j] ^ this.rKeys[i+1][j%8]);
+            else
+                xorRight64[j] = (byte)(xorRight64[j] ^ this.rKeys[i-1][j%8]);
+        }
+        byte[] fxorRight64 = Arrays.copyOfRange(xorRight64, 0, xorRight64.length);
+        this.F(fxorRight64);
+        for(int j = 0; j < left64.length; j++){
+            left64[j] = (byte)(fxorRight64[j] ^ left64[j]);
+        }
     }
 }
