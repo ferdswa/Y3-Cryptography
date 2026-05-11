@@ -33,7 +33,7 @@ public class XTSMode implements TweakableCipherMode {
         byte[][] blocks = generateBlocks(data, lengthInBlocks);
 
         //Encrypt sector number & set up cipher
-        BlockCipher cipher = setupCipher(sector, roundT);;
+        BlockCipher cipher = setupCipher(sector, roundT);
 
         //If equal then all full blocks
         if(lengthInBlocks == data.length/16) {
@@ -55,13 +55,12 @@ public class XTSMode implements TweakableCipherMode {
             byte[] remBlock = Arrays.copyOfRange(data, 16*(data.length/16), data.length);
             //should contain m-1 so copy to final now. blocks[i-1] is safe to work with
             byte[] LFB = Arrays.copyOfRange(blocks[i-1], 0, 16);
-            for(int j = 0; j < remBlock.length; j++) {
-                swap[j] = remBlock[j];
-            }
-            for(int j = remBlock.length; j < blocks[i-1].length; j++) {
-                swap[j] = blocks[i-1][j];//Pull from already computed ciphertext
-            }
-            //swap now contains the proper values for Cm
+            //Fill remaining bits with ciphertext
+            //Existing Pm values
+            System.arraycopy(remBlock, 0, swap, 0, remBlock.length);
+            //Then filling remainder of swap with previously computed block
+            System.arraycopy(blocks[i - 1], remBlock.length, swap, remBlock.length, blocks[i - 1].length - remBlock.length);
+            //swap now contains the proper values for Pm
             //First XOR
             for (int j = 0; j < swap.length; j++) {
                 blocks[i-1][j] = (byte) (swap[j] ^ roundT[j]);
@@ -132,12 +131,11 @@ public class XTSMode implements TweakableCipherMode {
             byte[] remBlock = Arrays.copyOfRange(data, 16*(data.length/16), data.length);
             //should contain m-1 so copy to final now. blocks[i-1] is safe to work with
             byte[] LFB = Arrays.copyOfRange(blocks[blocks.length-2], 0, 16);
-            for(int j = 0; j < remBlock.length; j++) {
-                swap[j] = remBlock[j];
-            }
-            for(int j = remBlock.length; j < blocks[blocks.length-2].length; j++) {
-                swap[j] = blocks[blocks.length-2][j];
-            }
+            //Fill remaining bits with ciphertext
+            //First copying existing Cm data
+            System.arraycopy(remBlock, 0, swap, 0, remBlock.length);
+            //Then filling remainder of swap with previously computed block
+            System.arraycopy(blocks[blocks.length - 2], remBlock.length, swap, remBlock.length, blocks[blocks.length - 2].length - remBlock.length);
             //swap now contains the proper values for Cm
             //First XOR
             for (int j = 0; j < swap.length; j++) {
