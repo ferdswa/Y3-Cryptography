@@ -134,6 +134,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         byte[] k2 = Arrays.copyOfRange(key, 8, 12);
         byte[] k3 = Arrays.copyOfRange(key, 12, 16);
 
+        //Turn the integers in M into bytes for XORing
         byte[] m0AsBytes = ByteBuffer.allocate(4).putInt(M[0]).array();
         byte[] m1AsBytes = ByteBuffer.allocate(4).putInt(M[1]).array();
         byte[] m2AsBytes = ByteBuffer.allocate(4).putInt(M[2]).array();
@@ -143,6 +144,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         byte[] m6AsBytes = ByteBuffer.allocate(4).putInt(M[6]).array();
         byte[] m7AsBytes = ByteBuffer.allocate(4).putInt(M[7]).array();
 
+        //XOR with M0-3
         for(int i = 0; i < k0.length; i++){
             k0[i] = (byte)(k0[i] ^ m0AsBytes[i]);
         }
@@ -156,6 +158,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
             k3[i] = (byte)(k3[i] ^ m3AsBytes[i]);
         }
 
+        //Generated dpad, store
         byte[] d0 = Arrays.copyOfRange(k2, 0, 4);
         byte[] d1 = Arrays.copyOfRange(k0, 0, 4);
         byte[] d2 = Arrays.copyOfRange(k3, 0, 4);
@@ -166,7 +169,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         System.arraycopy(d2, 0, dpad, 8, d2.length);
         System.arraycopy(d3, 0, dpad, 12, d3.length);
 
-        //done with dpad bits
+        //done with dpad bits - perform XOR with m4-7
         for(int i = 0; i<d0.length; i++){
             d0[i] = (byte)(d0[i] ^ (m4AsBytes[i]));
         }
