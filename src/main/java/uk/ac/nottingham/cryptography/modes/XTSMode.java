@@ -20,7 +20,6 @@ public class XTSMode implements TweakableCipherMode {
         this.tweakKey = Arrays.copyOfRange(key, 16, key.length);
         this.zodiac = !cipherSupplier.get().getClass().getSimpleName().equals("AES128");
     }
-
     @Override
     public void encrypt(byte[] sector, byte[] data) {
         byte[] roundT = new byte[16];
@@ -28,72 +27,29 @@ public class XTSMode implements TweakableCipherMode {
         GF128Multiplier gf128Multiplier = new GF128Multiplier();
         //For ciphertext stealing - calc whether theres a partial block on end of data
         //And change the length if there is.
-        int mod = data.length % 16;
-        int lengthIn128bBlocks = data.length / 16;
-        lengthIn128bBlocks = mod != 0 ? lengthIn128bBlocks+1 : lengthIn128bBlocks;
 
-        byte[][] blocks = new byte[lengthIn128bBlocks][16];
-        for (int i = 0; i < lengthIn128bBlocks; i++) {
-            blocks[i] = Arrays.copyOfRange(data, i*16, (i+1)*16);
-        }
+        int lengthInBlocks = calcDataLengthInBlocks(data);
+
+        byte[][] blocks = generateBlocks(data, lengthInBlocks);
 
         //Encrypt sector number & set up cipher
-        BlockCipher cipher;
-        if(zodiac) {
-            cipher = new Zodiac();
-            cipher.initialise(tweakKey);
-            cipher.encrypt(sector, roundT);
-            cipher = new Zodiac();
-            cipher.initialise(encryptKey);
-        }
-        else {
-            cipher = new AES128();
-            cipher.initialise(tweakKey);
-            cipher.encrypt(sector, roundT);
-            cipher = new AES128();
-            cipher.initialise(encryptKey);
-        }
+        BlockCipher cipher = setupCipher(sector, roundT);;
 
         //If equal then all full blocks
-        if(lengthIn128bBlocks == data.length/16) {
-            for(int i = 0; i < lengthIn128bBlocks; i++) {
-                //Reinit AES128
-
-                //First XOR
-                for(int j = 0; j < blocks[i].length; j++) {
-                    blocks[i][j] = (byte)(blocks[i][j] ^ roundT[j]);
-                }
-                //Encrypt
-                inBlock = Arrays.copyOfRange(blocks[i], 0, blocks[i].length);
-                cipher.encrypt(inBlock, blocks[i]);
-                //Second XOR
-                for(int j = 0; j < blocks[i].length; j++) {
-                    blocks[i][j] = (byte)(blocks[i][j] ^ roundT[j]);
-                }
-                //Setup for next round
-                gf128Multiplier.multiplyByX(roundT);
+        if(lengthInBlocks == data.length/16) {
+            for(int i = 0; i < lengthInBlocks; i++) {//Run rounds
+                runNormalRound(cipher, blocks, roundT, gf128Multiplier, i, true);
             }
-            for(int i = 0; i < lengthIn128bBlocks; i++) {
+            //Copy to output
+            for(int i = 0; i < lengthInBlocks; i++) {
                 System.arraycopy(blocks[i], 0, data, i*16, 16);
             }
         }
-        else{
+        else{ //Ciphertext Stealing
             //Start normally
-            int i = 0;
-            for(i = 0; i < lengthIn128bBlocks-1; i++) {
-                //First XOR
-                for (int j = 0; j < blocks[i].length; j++) {
-                    blocks[i][j] = (byte) (blocks[i][j] ^ roundT[j]);
-                }
-                //Encrypt
-                inBlock = Arrays.copyOfRange(blocks[i], 0, blocks[i].length);
-                cipher.encrypt(inBlock, blocks[i]);
-                //Second XOR
-                for (int j = 0; j < blocks[i].length; j++) {
-                    blocks[i][j] = (byte) (blocks[i][j] ^ roundT[j]);
-                }
-                //Setup for next round
-                gf128Multiplier.multiplyByX(roundT);
+            int i;
+            for(i = 0; i < lengthInBlocks-1; i++) {
+                runNormalRound(cipher, blocks, roundT, gf128Multiplier, i, true);
             }
             byte[] swap = new byte[16];
             byte[] remBlock = Arrays.copyOfRange(data, 16*(data.length/16), data.length);
@@ -118,86 +74,42 @@ public class XTSMode implements TweakableCipherMode {
                 blocks[i-1][j] = (byte) (blocks[i-1][j] ^ roundT[j]);
             }
             int k;
-            for(k = 0; k < lengthIn128bBlocks-1; k++) { //Exclude old last block
+            for(k = 0; k < lengthInBlocks-1; k++) { //Exclude old last block
                 System.arraycopy(blocks[k], 0, data, k*16, 16);
             }
             //Append old last block
             System.arraycopy(LFB, 0, data, k*16, remBlock.length);
         }
     }
-
     @Override
     public void decrypt(byte[] sector, byte[] data) {
         byte[] roundT = new byte[16];
         byte[] inBlock;
-        //For ciphertext stealing
-        int mod = data.length % 16;
-        int lengthIn128bBlocks = data.length / 16;
-        lengthIn128bBlocks = mod != 0 ? lengthIn128bBlocks+1 : lengthIn128bBlocks;
 
-        byte[][] blocks = new byte[lengthIn128bBlocks][16];
-        for (int i = 0; i < lengthIn128bBlocks; i++) {
-            blocks[i] = Arrays.copyOfRange(data, i*16, (i+1)*16);
-        }
+        //Calculate data length in blocks to see if ciphertext stealing is needed
+        int lengthInBlocks = calcDataLengthInBlocks(data);
+
+        //Split data into 16 byte blocks
+        byte[][] blocks = generateBlocks(data, lengthInBlocks);
 
         GF128Multiplier gf128Multiplier = new GF128Multiplier();
 
         //Encrypt sector number & setup cipher
-        BlockCipher cipher;
-
-        if(zodiac) {
-            cipher = new Zodiac();
-            cipher.initialise(tweakKey);
-            cipher.encrypt(sector, roundT);
-            cipher = new Zodiac();
-            cipher.initialise(encryptKey);
-        }
-        else {
-            cipher = new AES128();
-            cipher.initialise(tweakKey);
-            cipher.encrypt(sector, roundT);
-            cipher = new AES128();
-            cipher.initialise(encryptKey);
-        }
+        BlockCipher cipher = setupCipher(sector, roundT);
 
         //If equal then all full blocks
-        if(lengthIn128bBlocks == data.length/16) {
-            for(int i = 0; i < lengthIn128bBlocks; i++) {
-                //First XOR
-                for(int j = 0; j < blocks[i].length; j++) {
-                    blocks[i][j] = (byte)(blocks[i][j] ^ roundT[j]);
-                }
-                //Decrypt
-                inBlock = Arrays.copyOfRange(blocks[i], 0, blocks[i].length);
-                cipher.decrypt(inBlock, blocks[i]);
-                //Second XOR
-                for(int j = 0; j < blocks[i].length; j++) {
-                    blocks[i][j] = (byte)(blocks[i][j] ^ roundT[j]);
-                }
-                //Setup for next round
-                gf128Multiplier.multiplyByX(roundT);
+        if(lengthInBlocks == data.length/16) {
+            for(int i = 0; i < lengthInBlocks; i++) {
+                runNormalRound(cipher, blocks, roundT, gf128Multiplier, i, false);
             }
-            for(int i = 0; i < lengthIn128bBlocks; i++) {
+            for(int i = 0; i < lengthInBlocks; i++) {
                 System.arraycopy(blocks[i], 0, data, i*16, 16);
             }
         }
         else{
             //Start normally
-            int i = 0;
-            for(i = 0; i < lengthIn128bBlocks-2; i++) {
-                //First XOR
-                for (int j = 0; j < blocks[i].length; j++) {
-                    blocks[i][j] = (byte) (blocks[i][j] ^ roundT[j]);
-                }
-                //Decrypt
-                inBlock = Arrays.copyOfRange(blocks[i], 0, blocks[i].length);
-                cipher.decrypt(inBlock, blocks[i]);
-                //Second XOR
-                for (int j = 0; j < blocks[i].length; j++) {
-                    blocks[i][j] = (byte) (blocks[i][j] ^ roundT[j]);
-                }
-                //Setup for next round
-                gf128Multiplier.multiplyByX(roundT);
+            for(int i = 0; i < lengthInBlocks-2; i++) {
+                runNormalRound(cipher, blocks, roundT, gf128Multiplier, i, false);
             }
             //roundT = tm-1
             byte[] tM = Arrays.copyOfRange(roundT, 0, roundT.length);
@@ -239,12 +151,62 @@ public class XTSMode implements TweakableCipherMode {
                 blocks[blocks.length-1][j] = (byte) (blocks[blocks.length-1][j] ^ roundT[j]);
             }
             int k;
-            for(k = 0; k < lengthIn128bBlocks-2; k++) { //Exclude old last block
+            for(k = 0; k < lengthInBlocks-2; k++) { //Exclude old last block
                 System.arraycopy(blocks[k], 0, data, k*16, 16);
             }
             //Append swapped blocks
             System.arraycopy(blocks[blocks.length-1], 0, data, k*16, blocks[blocks.length-1].length);
             System.arraycopy(LFB, 0, data, (k+1)*16, remBlock.length);
         }
+    }
+    private BlockCipher setupCipher(byte[] sector, byte[] roundT) {
+        BlockCipher cipher;
+        if(zodiac) {
+            cipher = new Zodiac();
+            cipher.initialise(tweakKey);
+            cipher.encrypt(sector, roundT);
+            cipher = new Zodiac();
+            cipher.initialise(encryptKey);
+        }
+        else {
+            cipher = new AES128();
+            cipher.initialise(tweakKey);
+            cipher.encrypt(sector, roundT);
+            cipher = new AES128();
+            cipher.initialise(encryptKey);
+        }
+        return cipher;
+    }
+    private int calcDataLengthInBlocks(byte[] data){
+        int mod = data.length % 16;
+        int length = data.length / 16;
+        length = mod != 0 ? length+1 : length;
+        return length;
+    }
+    private byte[][] generateBlocks(byte[] data, int lengthInBlocks){
+        byte[][] blocks = new byte[lengthInBlocks][16];
+        for (int i = 0; i < lengthInBlocks; i++) {
+            blocks[i] = Arrays.copyOfRange(data, i*16, (i+1)*16);
+        }
+        return blocks;
+    }
+    private void runNormalRound(BlockCipher cipher, byte[][] blocks, byte[] roundT, GF128Multiplier gf128Multiplier, int i, boolean encrypt){
+        byte[] inBlock;
+        //First XOR
+        for(int j = 0; j < blocks[i].length; j++) {
+            blocks[i][j] = (byte)(blocks[i][j] ^ roundT[j]);
+        }
+        //Encrypt
+        inBlock = Arrays.copyOfRange(blocks[i], 0, blocks[i].length);
+        if(encrypt)
+            cipher.encrypt(inBlock, blocks[i]);
+        else
+            cipher.decrypt(inBlock, blocks[i]);
+        //Second XOR
+        for(int j = 0; j < blocks[i].length; j++) {
+            blocks[i][j] = (byte)(blocks[i][j] ^ roundT[j]);
+        }
+        //Setup for next round
+        gf128Multiplier.multiplyByX(roundT);
     }
 }
