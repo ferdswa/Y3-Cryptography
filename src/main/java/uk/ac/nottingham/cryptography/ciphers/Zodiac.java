@@ -87,6 +87,8 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
 
     byte[][] rKeys = new byte[18][8];
 
+    /// The F round function, running once per round. Works on block in place.
+    /// @param block the block being worked on
     @Override
     public void F(byte[] block) {
         //64 bits input here (8 bytes), 8 sub-blocks so 1 sub-block = 1 byte
@@ -99,6 +101,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         byte byteG = block[6];
         byte byteH = block[7];
 
+        //Perform XORs
         byte AxorB = (byte) (byteA ^ byteB);//S2 - B
         byte BxorC = (byte) (byteB ^ byteC);//S1 - C
         byte CxorD = (byte) (byteC ^ byteD);//S2 - D
@@ -108,6 +111,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         byte GxorH = (byte) (byteG ^ byteH);//S2 - H
         byte HxorA = (byte) (GxorH ^ byteA);//S1 - E
 
+        //Sub with sblock values
         byte subAxorB = S2[AxorB & 0xFF]; //B
         byte subBxorC = S1[BxorC & 0xFF]; //C
         byte subCxorD = S2[CxorD & 0xFF]; //D
@@ -116,6 +120,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         byte subFxorG = S1[FxorG & 0xFF]; //G
         byte subGxorH = S2[GxorH & 0xFF]; //H
         byte subHxorA = S1[HxorA & 0xFF]; //E
+        //Place into correct positions
         block[0] = subDxorE;
         block[1] = subAxorB;
         block[2] = subBxorC;
@@ -126,6 +131,10 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         block[7] = subGxorH;
     }
 
+    /// Initialises the Zodiac cipher's kpad and dpad
+    /// @param dpad the dpad to be initialised
+    /// @param kpad the kpad to be initialised
+    /// @param key the key being used to initalise kpad and dpad
     @Override
     public void initPads(byte[] dpad, byte[] kpad, byte[] key) {
         //128 bit in, 4 blocks, 32 bits per block, 4 bytes per block
@@ -194,6 +203,8 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         System.arraycopy(kpad3, 0, kpad, 12, kpad3.length);
     }
 
+    /// Pi permutation function. Computes output by XORing every 32 bit word of block with every other word
+    /// @param block the block being worked on
     @Override
     public void PI(byte[] block) {
         //8 bits per byte. 4 bytes = 32 bits
@@ -230,7 +241,8 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         System.arraycopy(outBlock, 0, block, 0, 16);
     }
 
-
+    /// 2 round PSI function. Works on two 64-bit halves of block. Rounds differ from runZodiacFeistel()
+    /// @param block the block being worked on
     @Override
     public void PSI(byte[] block) {
         //128 bit input
@@ -288,6 +300,8 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         return res;
     }
 
+    /// Initialise the cipher with the supplied key
+    /// @param key the key used for this instance
     @Override
     public void initialise(byte[] key) {
         //Init pads
@@ -298,6 +312,9 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         this.rKeys = this.generateSchedule(dPad, kPad);
     }
 
+    /// Encrypt input with the Zodiac cipher
+    /// @param input the input plaintext
+    /// @param output the output ciphertext
     @Override
     public void encrypt(byte[] input, byte[] output) {
         //multi re-init test fails if input is worked on directly
@@ -325,9 +342,12 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         this.PI(output);
     }
 
+    /// Decrypt input with the Zodiac cipher
+    /// @param input the input ciphertext
+    /// @param output the output plaintext
     @Override
     public void decrypt(byte[] input, byte[] output) {
-        //inverse encrypt
+        //perform inverse of encrypt
         System.arraycopy(input, 0, output, 0, input.length);
         this.PI(output);
         byte[] left64 = Arrays.copyOfRange(output, 0, 8);
@@ -349,6 +369,11 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
         this.PI(output);
     }
 
+    /// Runs two pairs of the Zodiac cipher Feistel network.
+    /// @param left64 the left 64 bits of the 128 bit block being worked on
+    /// @param right64 the right 64 bits of the 128 bit block being worked on
+    /// @param i the pair-as-round number
+    /// @param encrypt value determines whether this method runs in encrypt or decrypt mode
     private void runZodiacFeistel(byte[] left64, byte[] right64, int i, boolean encrypt) {
         byte[] xorLeft64 = Arrays.copyOfRange(left64, 0, left64.length);
         for(int j = 0; j < xorLeft64.length; j++){
