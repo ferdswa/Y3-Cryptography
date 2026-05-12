@@ -6,7 +6,6 @@ import uk.ac.nottingham.cryptography.ciphers.Zodiac;
 import uk.ac.nottingham.cryptography.galois.GF128Multiplier;
 
 import java.util.Arrays;
-import java.util.ServiceLoader;
 import java.util.function.Supplier;
 
 public class XTSMode implements TweakableCipherMode {
