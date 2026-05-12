@@ -20,6 +20,9 @@ public class XTSMode implements TweakableCipherMode {
         this.tweakKey = Arrays.copyOfRange(key, 16, key.length);
         this.zodiac = !cipherSupplier.get().getClass().getSimpleName().equals("AES128");
     }
+    /// Encrypt using the specified block cipher in XTS mode
+    /// @param sector Sector number in bytes
+    /// @param data Plaintext to be encrypted
     @Override
     public void encrypt(byte[] sector, byte[] data) {
         byte[] roundT = new byte[16];
@@ -80,6 +83,9 @@ public class XTSMode implements TweakableCipherMode {
             System.arraycopy(LFB, 0, data, k*16, remBlock.length);
         }
     }
+    /// Decrypt using the specified block cipher in XTS mode
+    /// @param sector Sector number in bytes
+    /// @param data Ciphertext to be decrypted
     @Override
     public void decrypt(byte[] sector, byte[] data) {
         byte[] roundT = new byte[16];
@@ -157,6 +163,10 @@ public class XTSMode implements TweakableCipherMode {
             System.arraycopy(LFB, 0, data, (k+1)*16, remBlock.length);
         }
     }
+    /// Determine and set up which block cipher to use
+    /// @param sector Sector number to generate first tweak t0
+    /// @param roundT Round tweak variable storing t0 at method end
+    /// @return Selected and initialised block cipher
     private BlockCipher setupCipher(byte[] sector, byte[] roundT) {
         BlockCipher cipher;
         if(zodiac) {
@@ -175,12 +185,19 @@ public class XTSMode implements TweakableCipherMode {
         }
         return cipher;
     }
+    /// Calculate data length in 128 bit blocks, including partial blocks
+    /// @param data The data to be en/decrypted
+    /// @return The length of the data in 128 bit blocks
     private int calcDataLengthInBlocks(byte[] data){
         int mod = data.length % 16;
         int length = data.length / 16;
         length = mod != 0 ? length+1 : length;
         return length;
     }
+    /// Splits the data into max 128 bit blocks, smaller for last block if partial
+    /// @param data Data being used for en/decryption
+    /// @param lengthInBlocks Calculated length of data in max 128 bit blocks
+    /// @return Array of byte arrays containing maximum 128 bits
     private byte[][] generateBlocks(byte[] data, int lengthInBlocks){
         byte[][] blocks = new byte[lengthInBlocks][16];
         for (int i = 0; i < lengthInBlocks; i++) {
@@ -188,6 +205,13 @@ public class XTSMode implements TweakableCipherMode {
         }
         return blocks;
     }
+    /// Runs a normal round of the block cipher - one that doesn't require swapping for ciphertext stealing. Upon method completion, `blocks[i]` contains the en/decrypted output.
+    /// @param cipher The block cipher being used
+    /// @param blocks Data split into 128 bit blocks
+    /// @param roundT This round's round tweak
+    /// @param gf128Multiplier An instance of GF128MULTIPLIER used for calculating the next round's tweak
+    /// @param i The round number
+    /// @param encrypt Value determines whether this round is run in encrypt or decrypt mode
     private void runNormalRound(BlockCipher cipher, byte[][] blocks, byte[] roundT, GF128Multiplier gf128Multiplier, int i, boolean encrypt){
         byte[] inBlock;
         //First XOR

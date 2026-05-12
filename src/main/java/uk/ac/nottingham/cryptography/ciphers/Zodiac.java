@@ -134,7 +134,7 @@ public class Zodiac implements ZodiacCipher, BlockCipher {
     /// Initialises the Zodiac cipher's kpad and dpad
     /// @param dpad the dpad to be initialised
     /// @param kpad the kpad to be initialised
-    /// @param key the key being used to initalise kpad and dpad
+    /// @param key the key being used to initalise `kpad` and `dpad``
     @Override
     public void initPads(byte[] dpad, byte[] kpad, byte[] key) {
         //128 bit in, 4 blocks, 32 bits per block, 4 bytes per block
